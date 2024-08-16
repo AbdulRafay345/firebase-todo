@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Typography, Tag, Space, Modal, Button, Form, Row, Col, Input } from 'antd';
-import { getDocs, collection, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { getDocs, collection, doc, setDoc, deleteDoc, serverTimestamp, query, where } from "firebase/firestore";
 import { firestore } from '../../../config/firebase';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 const { Title, Paragraph } = Typography;
 const { toastify } = window;
@@ -15,6 +16,8 @@ export default function TodoTable() {
     const [currentTodo, setCurrentTodo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    const { user } = useAuthContext();
+
     const showModal = (todo) => {
         setCurrentTodo(todo);
         setState({
@@ -24,35 +27,44 @@ export default function TodoTable() {
         });
         setIsModalOpen(true);
     };
+
     const handleOk = () => {
         updateSubmit(currentTodo);
         setIsModalOpen(false);
     };
+
     const handleCancel = () => { setIsModalOpen(false); };
 
-
     const fetchData = async () => {
+        if (!user) return;
         setIsloading(true);
-        const querySnapshot = await getDocs(collection(firestore, "todos"));
-        const data = querySnapshot.docs.map(doc => ({
-            key: doc.id,
-            title: doc.data().title,
-            location: doc.data().location,
-            description: doc.data().description,
-            status: doc.data().status,
-            id: doc.data().id,
-        }));
-        setDataSource(data);
-        setIsloading(false);
+
+        try {
+            const q = query(collection(firestore, "todos"), where("user_id", "==", user.uid));
+            const querySnapshot = await getDocs(q);
+
+            const data = querySnapshot.docs.map(doc => ({
+                key: doc.id,
+                title: doc.data().title,
+                location: doc.data().location,
+                description: doc.data().description,
+                status: doc.data().status,
+                id: doc.id,
+            }));
+
+            setDataSource(data);
+        } catch (error) {
+            console.error("Error fetching todos: ", error);
+        } finally {
+            setIsloading(false);
+        }
     };
 
     useEffect(() => {
         fetchData();
-    }, []);
-
+    }, [user]);
 
     const handleComplete = async (todo) => {
-
         try {
             const docRef = doc(firestore, "todos", todo.id);
             await setDoc(docRef, { status: 'complete', dateUpdated: serverTimestamp() }, { merge: true });
@@ -64,10 +76,9 @@ export default function TodoTable() {
         }
     };
 
-    const handleChange = (e) => setState(s => ({ ...s, [e.target.name]: e.target.value }));
+    const handleChange = e => setState(s => ({ ...s, [e.target.name]: e.target.value }));
 
     const updateSubmit = async (todo) => {
-
         const { updatedTitle, updatedDescription, updatedLocation } = state;
 
         const formData = {
@@ -78,7 +89,7 @@ export default function TodoTable() {
         };
 
         try {
-            const docRef = doc(firestore, "todos", todo.id);
+            const docRef = doc(firestore, "todos", todo.id); // Correct doc reference
             await setDoc(docRef, formData, { merge: true });
             setDataSource(s => s.map(item => item.id === todo.id ? { ...item, ...formData } : item));
             toastify("Todo updated successfully", "success");
@@ -90,7 +101,7 @@ export default function TodoTable() {
 
     const handleDelete = async (todo) => {
         try {
-            setDataSource(s => (s.filter(item => item.id !== todo.id)));
+            setDataSource(s => s.filter(item => item.id !== todo.id));
             await deleteDoc(doc(firestore, "todos", todo.id));
             toastify("Todo deleted successfully", "success");
         } catch (err) {
@@ -106,7 +117,7 @@ export default function TodoTable() {
         {
             title: 'Description', dataIndex: 'description', key: 'description',
             render: (text) => (
-                <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}>
+                <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}>
                     {text}
                 </Paragraph>
             ),
@@ -121,8 +132,8 @@ export default function TodoTable() {
             key: 'actions',
             render: (_, record) => (
                 <Space>
-                    <Button type='primary' style={{background:"#008000"}} onClick={() => handleComplete(record)}>Complete</Button>
-                    <Button  onClick={() => showModal(record)}>Update</Button>
+                    <Button type='primary' style={{ background: "#008000" }} onClick={() => handleComplete(record)}>Complete</Button>
+                    <Button onClick={() => showModal(record)}>Update</Button>
                     <Button type='primary' danger onClick={() => handleDelete(record)}>Delete</Button>
                 </Space>
             ),
