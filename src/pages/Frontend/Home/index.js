@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <>
       <div className='text-center bg-primary' style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignContent: "center" }}>
-        <h2 className='text-white py-2'>Welcome</h2>
+        <h2 className='text-white py-2'>Welcome! To my website</h2>
 
         <h4 className='text-white'>Go to website <Link to='/dashboard' className='text-white'><ArrowRightOutlined /></Link></h4>
 
